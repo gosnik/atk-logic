@@ -232,6 +232,31 @@ EOF_DESKTOP
   printf '%s\n' "$desktop"
 }
 
+write_apprun_file() {
+  local apprun="$BUILD_ROOT/AppRun"
+
+  cat >"$apprun" <<'EOF_APPRUN'
+#!/usr/bin/env bash
+
+set -e
+
+this_dir="$(readlink -f "$(dirname "$0")")"
+
+if [[ -z "${QT_QPA_PLATFORM:-}" && -n "${WAYLAND_DISPLAY:-}" && -n "${DISPLAY:-}" ]]; then
+  export QT_QPA_PLATFORM=xcb
+fi
+
+if [[ -f "$this_dir/apprun-hooks/linuxdeploy-plugin-qt-hook.sh" ]]; then
+  source "$this_dir/apprun-hooks/linuxdeploy-plugin-qt-hook.sh"
+fi
+
+exec "$this_dir/usr/bin/ATK-Logic" "$@"
+EOF_APPRUN
+
+  chmod +x "$apprun"
+  printf '%s\n' "$apprun"
+}
+
 prepare_appdir() {
   local binary="$1"
 
@@ -251,10 +276,12 @@ prepare_appdir() {
 build_appimage() {
   local binary="$1"
   local desktop="$2"
+  local apprun
   local icon
   local linuxdeploy="$TOOLS_DIR/linuxdeploy-${ARCH_NAME}.AppImage"
   local qt_plugin="$TOOLS_DIR/linuxdeploy-plugin-qt-${ARCH_NAME}.AppImage"
 
+  apprun="$(write_apprun_file)"
   icon="$(prepare_icon)"
 
   download_tool "$LINUXDEPLOY_URL" "$linuxdeploy"
@@ -274,6 +301,7 @@ build_appimage() {
     --executable "$APPDIR/usr/bin/ATK-Logic" \
     --desktop-file "$desktop" \
     --icon-file "$icon" \
+    --custom-apprun "$apprun" \
     --plugin qt \
     --output appimage
   popd >/dev/null
