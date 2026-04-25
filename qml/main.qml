@@ -13,12 +13,16 @@ import "./style"
 FramelessWindow {
     id: root
     visible: true
-    minimumHeight: 550
-    minimumWidth: 600
+    minimumHeight: Math.round(baseMinimumHeight * Config.uiScale)
+    minimumWidth: Math.round(baseMinimumWidth * Config.uiScale)
     color: "#00000000"
     isLinuxMemoryLimit: Setting.isLinuxMemoryLimit;
     rootDir: tempDir
 
+    readonly property int baseMinimumHeight: 550
+    readonly property int baseMinimumWidth: 600
+    readonly property int baseDefaultWidth: 900
+    readonly property int baseDefaultHeight: 650
     property int borderWidth: 4
     property color borderColor: "#01FFFFFF"
     property var loadingWindow
@@ -44,15 +48,28 @@ FramelessWindow {
                 Setting.theme=0;
                 Setting.save();
             }
+            if(Setting.uiScale<1.0 || Setting.uiScale>3.0)
+                Setting.uiScale=1.6;
+            if(Setting.lastUiScale<1.0 || Setting.lastUiScale>3.0)
+                Setting.lastUiScale=1.0;
+            if(Math.abs(Setting.lastUiScale-Setting.uiScale)>0.001){
+                let scaleRatio=Setting.uiScale/Setting.lastUiScale;
+                if(Setting.width>0)
+                    Setting.width=Math.round(Setting.width*scaleRatio);
+                if(Setting.height>0)
+                    Setting.height=Math.round(Setting.height*scaleRatio);
+                Setting.lastUiScale=Setting.uiScale;
+                Setting.save();
+            }
             if(typeof(Setting.decodeConfig)==="undefined")
                 Setting.decodeConfig={};
             if(Setting.decodeLogLevel<0 || Setting.decodeLogLevel>5)
                 Setting.decodeLogLevel=2;
             root.setDecodeLogLevel(Setting.decodeLogLevel);
             if(Setting.width<minimumWidth)
-                Setting.width=900;
+                Setting.width=Math.round(baseDefaultWidth*Config.uiScale);
             if(Setting.height<minimumHeight)
-                Setting.width=650;
+                Setting.height=Math.round(baseDefaultHeight*Config.uiScale);
             if(Setting.isSetWindow){
                 root.x=Setting.x;
                 root.y=Setting.y;
@@ -568,7 +585,10 @@ FramelessWindow {
 
                     Item{
                         id: showItem
-                        anchors.fill: parent
+                        width: parent.width / Config.uiScale
+                        height: parent.height / Config.uiScale
+                        scale: Config.uiScale
+                        transformOrigin: Item.TopLeft
 
                         Connections{
                             target: root

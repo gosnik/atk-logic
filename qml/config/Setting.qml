@@ -16,6 +16,7 @@ QSetting {
     property bool showFPS: false                //显示FPS
     property bool isMouseMeasure: true          //是否使用鼠标测量
     property bool isLinuxMemoryLimit: true      //是否限制ubuntu内存使用
+    property real uiScale: 1.0                  //全局界面缩放
 
     //提示
     property string notRemindVersion: ""   //不提醒版本
@@ -27,6 +28,7 @@ QSetting {
     property int x: 0
     property int y: 0
     property int windowState: 0
+    property real lastUiScale: 1.0
 
     //样式
     property color mouseMeasureBackColor: "#ddbcedff"//鼠标悬浮窗背景色

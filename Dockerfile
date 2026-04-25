@@ -31,13 +31,10 @@ RUN apt-get install -y \
     qml-module-qtquick-controls2
 
 
-RUN git clone https://github.com/bieganski/atk-logic
+WORKDIR /atk-logic
 
-WORKDIR atk-logic
-
-COPY libsigrokdecode.a .
+COPY . .
 
 RUN qmake
 RUN make -j6
 RUN size ATK-Logic
-

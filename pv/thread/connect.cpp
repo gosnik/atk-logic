@@ -111,10 +111,15 @@ void ConnectDevice::CheckDeviceCreanInfo(USBControl *usb, qint32 port)
             LogHelp::write(QString("    获取FPGA信息.."));
             usb->GetDeviceData(false);
             if(usb->ReadSynchronous(data2, 2048)){
+                LogHelp::write(QString("    FPGA读取成功，长度:%1").arg(QString::number(data2->len)));
                 Analysis analusis(data2->buf,data2->len);
                 AnalysisData data=analusis.getNextData();
+                bool foundFpgaInfo=false;
                 while(data.order!=-1){
+                    LogHelp::write(QString("    FPGA响应块: order=%1, len=%2")
+                                   .arg(QString::number(data.order), QString::number(data.ullLen)));
                     if(data.order==2){
+                        foundFpgaInfo=true;
                         if(*(data.pData+2)!=1){
                             delete[] data2->buf;
                             delete data2;
@@ -135,19 +140,24 @@ void ConnectDevice::CheckDeviceCreanInfo(USBControl *usb, qint32 port)
                             emit SendDeviceCreanInfo("","",port,0,0,0,0,6);
                             return;
                         }else if(APP_VERSION_NUM<minVersion){
-                            delete[] data2->buf;
-                            delete data2;
-                            emit SendDeviceCreanInfo("","",port,0,0,0,0,7);
-                            return;
+                            LogHelp::write(QString("    软件版本检查已绕过: app=%1, device_min=%2")
+                                           .arg(QString::number(APP_VERSION_NUM), QString::number(minVersion)));
                         }
                         QByteArray array((const char *)(data.pData+9),data.ullLen-9);
                         name = QString::fromLocal8Bit(array);
+                        LogHelp::write(QString("    FPGA信息: usb=%1, fpga=%2, min_app=%3, name=%4")
+                                       .arg(usbName,
+                                            QString::number(fpgaVersions),
+                                            QString::number(minVersion),
+                                            name));
                         break;
                     }
                     data=analusis.getNextData();
                 }
+                if(!foundFpgaInfo)
+                    LogHelp::write(QString("    FPGA响应中未找到order=2设备信息块"));
             }else
-                LogHelp::write(QString("    获取FPGA信息失败"));
+                LogHelp::write(QString("    获取FPGA信息失败，读取长度:%1").arg(QString::number(data2->len)));
         }
         if(data2->buf)
             delete[] data2->buf;

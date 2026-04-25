@@ -16,6 +16,7 @@ QtObject {
     //全局常量
     property var themeList: ["dark","light"]
     property string tp: themeList[Setting.theme]
+    property real uiScale: Math.max(1.0, Setting.uiScale)
 
     property int headerHeight: 30//通道头部高度
     property int headerWidth: 190//左侧边栏宽度
