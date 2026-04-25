@@ -12,6 +12,7 @@ QT_PRIVATE_ROOT="${QT_PRIVATE_ROOT:-$TOOLS_DIR/qtbase5-private-dev}"
 BUILD_JOBS="${BUILD_JOBS:-$(nproc)}"
 VERSION="${VERSION:-$(sed -n 's/^VERSION *= *//p' "$ROOT_DIR/ATK-Logic.pro" | head -1)}"
 ARCH_NAME="${ARCH_NAME:-x86_64}"
+PYTHON_ABI_VERSION="${PYTHON_ABI_VERSION:-3.12}"
 OUTPUT_NAME="${OUTPUT_NAME:-ATK-LogicView-${VERSION}-${ARCH_NAME}.AppImage}"
 
 LINUXDEPLOY_URL="${LINUXDEPLOY_URL:-https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${ARCH_NAME}.AppImage}"
@@ -31,6 +32,85 @@ download_tool() {
   echo "[tools] downloading $(basename -- "$output")"
   curl -L --fail --retry 3 --output "$output" "$url"
   chmod +x "$output"
+}
+
+copy_tree() {
+  local src="$1"
+  local dst="$2"
+
+  rm -rf "$dst"
+  mkdir -p "$(dirname -- "$dst")"
+
+  if command -v rsync >/dev/null 2>&1; then
+    rsync -a --delete \
+      --exclude='__pycache__/' \
+      --exclude='*.pyc' \
+      --exclude='test/' \
+      --exclude='ensurepip/' \
+      --exclude='idlelib/' \
+      --exclude='tkinter/' \
+      --exclude='turtledemo/' \
+      --exclude='venv/' \
+      "$src/" "$dst/"
+  else
+    cp -a "$src" "$dst"
+    find "$dst" \( \
+      -type d \( \
+        -name __pycache__ -o \
+        -name test -o \
+        -name ensurepip -o \
+        -name idlelib -o \
+        -name tkinter -o \
+        -name turtledemo -o \
+        -name venv \
+      \) -prune -exec rm -rf {} + \
+    \) -o -type f -name '*.pyc' -delete
+  fi
+}
+
+find_python_stdlib() {
+  local python_bin="python$PYTHON_ABI_VERSION"
+  local stdlib
+
+  if [[ -n "${PYTHON_STDLIB_DIR:-}" && -d "$PYTHON_STDLIB_DIR" ]]; then
+    printf '%s\n' "$PYTHON_STDLIB_DIR"
+    return 0
+  fi
+
+  if command -v "$python_bin" >/dev/null 2>&1; then
+    stdlib="$("$python_bin" - <<'EOF_PY'
+import sysconfig
+print(sysconfig.get_path("stdlib"))
+EOF_PY
+)"
+    if [[ -d "$stdlib" ]]; then
+      printf '%s\n' "$stdlib"
+      return 0
+    fi
+  fi
+
+  if [[ -d "/usr/lib/python$PYTHON_ABI_VERSION" ]]; then
+    printf '%s\n' "/usr/lib/python$PYTHON_ABI_VERSION"
+    return 0
+  fi
+
+  echo "Python $PYTHON_ABI_VERSION stdlib was not found. Set PYTHON_STDLIB_DIR." >&2
+  return 1
+}
+
+bundle_python_runtime() {
+  local stdlib
+  local dst="$APPDIR/usr/bin/lib/python$PYTHON_ABI_VERSION"
+
+  stdlib="$(find_python_stdlib)"
+  echo "[appdir] bundling Python stdlib from $stdlib"
+  copy_tree "$stdlib" "$dst"
+  mkdir -p "$APPDIR/usr/bin/atk_python"
+
+  if [[ ! -f "$dst/encodings/__init__.py" ]]; then
+    echo "Bundled Python stdlib is missing encodings/__init__.py under $dst." >&2
+    exit 1
+  fi
 }
 
 ensure_qt_private_headers() {
@@ -160,7 +240,8 @@ prepare_appdir() {
   mkdir -p "$APPDIR/usr/bin"
 
   cp "$binary" "$APPDIR/usr/bin/ATK-Logic"
-  cp -a "$ROOT_DIR/runtime/decoders" "$APPDIR/usr/bin/decoders"
+  copy_tree "$ROOT_DIR/runtime/decoders" "$APPDIR/usr/bin/decoders"
+  bundle_python_runtime
 
   if compgen -G "$ROOT_DIR/runtime/ATK-Logic*.pdf" >/dev/null; then
     cp -a "$ROOT_DIR"/runtime/ATK-Logic*.pdf "$APPDIR/usr/bin/"
